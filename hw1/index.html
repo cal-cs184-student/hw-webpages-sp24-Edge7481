@@ -159,6 +159,10 @@
   is composed of a combination of distances from the triangle's vertices. Barycentric coordinates is especially helpful when we want to sample across a triangle from one vertex to another such as interpolated colors or texture mapping.
   In concrete terms. A point P in a triangle described by pointe ABC is expressed as a linear combination of aA+bB+cC, where a, b, c are weights that describe how much each vertex influences the point.
 
+  NOTE: I used ChatGPT 3.5 to convert the barycentric coordinates formula into c++ code and it generated the code to compute the area of the triangles.
+  I investigated further and noticed that the line function is essentially computing a cross product, which happens to be the area of the parallelogram defined by the points.
+  This allowed me to use the area formula as opposed to the line formula.
+
 </p>
 <div align="middle">
   <table style="width=100%">
