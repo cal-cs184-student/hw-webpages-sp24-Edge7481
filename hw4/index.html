@@ -1,7 +1,357 @@
-<html>
-	<head>
-	</head>
-	<body>
-		Homework 4 index.html here
-	</body>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<style>
+  body {
+    padding: 100px;
+    width: 1000px;
+    margin: auto;
+    text-align: left;
+    font-weight: 300;
+    font-family: 'Open Sans', sans-serif;
+    color: #121212;
+  }
+  h1, h2, h3, h4 {
+    font-family: 'Source Sans Pro', sans-serif;
+  }
+</style>
+<title>CS 184 Mesh Editor</title>
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+<link href="https://fonts.googleapis.com/css?family=Open+Sans|Source+Sans+Pro" rel="stylesheet">
+</head>
+
+
+<body>
+
+<h1 align="middle">CS 184: Computer Graphics and Imaging, Spring 2017</h1>
+<h1 align="middle">Project 4: Cloth Simulator</h1>
+<h2 align="middle">Owen Hu, CS184-sp24</h2>
+
+<br><br>
+
+<div>
+
+<h2 align="middle">Overview</h2>
+<p>Give a high-level overview of what you implemented in this project. Think about what you've built as a whole. Share your thoughts on what interesting things you've learned from completing the project.</p>
+
+<p>
+  In this project I implemented the simulation of cloth materials by using a spring mesh. I implemented how the cloth would behave by
+  using verlet integration to compute the force at each point of the cloth, as well as implement collision detection to ensure that it doesn't
+  cross through objects or itself. For the last part, i implemented various shaders to simulate color, texture, and reflection of the materials.
+</p>
+
+
+<h2 align="middle">Part I: Masses and springs</h2>
+
+<p>In this part I implemented the point-mass mesh representation of cloth. This simulates the behavior of cloth by calculating the behavior
+  of each spring between points based on external force. The 3 types of springs are structural, which maintain distance
+  between adjacent vertices, shearing, which control how parallel vertices slide against each other, and bending, which control
+  vertices farther away from adjacent vertices.
+</p>
+
+<div align="middle">
+  <table style="width:100%">
+    <tr align="center">
+      <td>
+        <img src="1.1.png" align="middle" width="400px"/>
+        <figcaption>all constraints.dae</figcaption>
+      </td>
+      <td>
+        <img src="1.2.png" align="middle" width="400px"/>
+        <figcaption>only shearing constraints.dae</figcaption>
+      </td>
+    </tr>
+    <tr align="center">
+      <td>
+        <img src="1.3.png" align="middle" width="400px"/>
+        <figcaption>without shearing constraints.dae</figcaption>
+      </td>
+    </tr>
+  </table>
+  </div>
+
+  <h2 align="middle">Part 2: Simulation via numerical integration</h2>
+  <p>
+    In this part I implemented the simulation of cloth using verlet integration. This part of the project computes all of the forces
+    acting on each spring and how the forces on the springs affect each other. In the end, these forces are converted into
+    accelerations and velocities in order to simulate the position of each point mass in the next time step. Note that I also implemented
+    Provot's contraints to prevent springs from being unreasonably deformed.
+  </p>
+
+  <div align="middle">
+    <table style="width:100%">
+      <tr align="center">
+        <td>
+          <img src="2.1.png" align="middle" width="400px"/>
+          <figcaption>ks = 5000</figcaption>
+        </td>
+        <td>
+          <img src="2.2.png" align="middle" width="400px"/>
+          <figcaption>ks = 30000</figcaption>
+        </td>
+        </tr>
+    </table>
+  </div>
+
+  <p>
+    ks affects how rigid the material is. since spring displacement is inversely proportional to the string constant, we can see that
+    increasing ks from 5000 to 30000 makes it much more difficult for force (gravity) to extend the springs.
+  </p>
+
+  <div align="middle">
+    <table style="width:100%">
+      <tr align="center">
+        <td>
+          <img src="2.3.png" align="middle" width="400px"/>
+          <figcaption>density = 3</figcaption>
+        </td>
+        <td>
+          <img src="2.4.png" align="middle" width="400px"/>
+          <figcaption>density = 30</figcaption>
+        </td>
+        </tr>
+    </table>
+  </div>
+
+  <p>
+    Increasing the density is essentially increasing the mass, which in turn increases the spring extension. Since force is directly proportional with mass, a higher density means 
+    a stronger pull from gravity.
+  </p>
+
+  <div align="middle">
+    <table style="width:100%">
+      <tr align="center">
+        <td>
+          <img src="2.5.png" align="middle" width="400px"/>
+          <figcaption>damping = ~5%</figcaption>
+        </td>
+        <td>
+          <img src="2.6.png" align="middle" width="400px"/>
+          <figcaption>damping = ~80%</figcaption>
+        </td>
+        </tr>
+    </table>
+  </div>
+
+  <p>
+    damping attempts to simulate how energy is lost. The higher the damping, the more energy lost per time step. Note the
+    ripples at the bottom of the cloth with in the image with low damping. The material oscillates for significantly longer due there still being
+    energy in the cloth. On the other hand, the simulation with high damping sees the material converge to a resting state. 
+  </p>
+
+  <img src="2.7.png" align="middle" width="800"/>
+  <figcaption>pinned4.json</figcaption>
+
+  <h2 align="middle">Part 3: Handling collisions with other objects</h2>
+
+  <p>
+    In this part I implemented computing the collision of the cloth with spheres and planes. For the sphere case, I check whether
+    the distance between the point mass's position and the sphere's origin. If the point mass is closer to the sphere than the radius,
+    I update the position to be the minimal position outside the sphere (tangent), adjusted by friction to simulate the cloth sliding over the sphere.
+
+    For the plane case, I use dot products to determine if the point mass has passed through the plane between 2 time steps. If that is the case,
+    I calculate the direction from the point mass's last position to the current position, and move it towards the previous position when it
+    tangents with the plane. Friction is adjusted in the same way as the sphere case.
+  </p>
+
+  <div align="middle">
+    <table style="width:100%">
+      <tr align="center">
+        <td>
+          <img src="3.1.png" align="middle" width="400px"/>
+          <figcaption>ks=5000</figcaption>
+        </td>
+        <td>
+          <img src="3.2.png" align="middle" width="400px"/>
+          <figcaption>ks=500</figcaption>
+        </td>
+        </tr>
+        <tr align="center">
+          <td>
+            <img src="3.3.png" align="middle" width="400px"/>
+            <figcaption>ks=50000</figcaption>
+          </td>
+          </tr>
+    </table>
+  </div>
+  <p>
+    Again, ks affects the material by making it more rigid as ks increases. A higher ks means that it takes more force to stretch
+    the springs to the same degree, so the material looks very much more deformed in ks=500 compared to ks=50000
+  </p>
+
+  <img src="3.4.png" align="middle" width="800"/>
+  <figcaption>diffuse shaded cloth on plane</figcaption>
+
+  <h2 align="middle">Part 4: Handling self-collisions</h2>
+
+  <p>
+    In this part I implemented self-collisions by first building a spatial hash of the point masses to constrain calculations to only points
+    that are close enough to collide. After that, I continuously check each point against the possible collision candidates in the table and
+    flag it as collided if they're within a certain thickness apart. If a collision is detected, I apply opposite forces of the point with
+    the points it collided with. By averaging the force from each other collision point, it essentially moves the point away from all of the collided
+    points.
+  </p>
+
+  <div align="middle">
+    <table style="width:100%">
+      <tr align="center">
+        <td>
+          <img src="4.1.png" align="middle" width="400px"/>
+          <figcaption>early</figcaption>
+        </td>
+        <td>
+          <img src="4.2.png" align="middle" width="400px"/>
+          <figcaption>mid</figcaption>
+        </td>
+        </tr>
+        <tr align="center">
+          <td>
+            <img src="4.3.png" align="middle" width="400px"/>
+            <figcaption>late</figcaption>
+          </td>
+          </tr>
+    </table>
+  </div>
+
+  <div align="middle">
+    <table style="width:100%">
+      <tr align="center">
+        <td>
+          <img src="4.4.png" align="middle" width="400px"/>
+          <figcaption>density=3</figcaption>
+        </td>
+        <td>
+          <img src="4.5.png" align="middle" width="400px"/>
+          <figcaption>density=30</figcaption>
+        </td>
+        </tr>
+        <tr align="center">
+          <td>
+            <img src="4.6.png" align="middle" width="400px"/>
+            <figcaption>ks=500</figcaption>
+          </td>
+          <td>
+            <img src="4.7.png" align="middle" width="400px"/>
+            <figcaption>ks=50000</figcaption>
+          </td>
+          </tr>
+    </table>
+
+    <p>
+      the same observations as parts 2 and 3. Increasing ks makes the cloth more rigid, whereas increasing density does the opposite.
+      This ties back to the amount of force needed to deform a spring. Density increases the mass from F=ma, ks increases the spring coefficient
+      from hooke's law F=kx
+    </p>
+
+    <h2 align="middle">Part 5: Shaders</h2>
+    <p alight>
+      Our shaders have two main components. These are executed in the GPU, which is specialized to handle geometric calculations:
+      <br>
+      The vertex shader converts vertices described in 3d space and convert it to 2d representations in the screen space.
+      The vertex shader also sets up the normals to be used in fragment shaders.
+      <br>
+      The fragment shader come after the vertex shaders in the pipeline. It uses the information from vertex shaders along with
+      additional information to determine the color of each pixel. potentially on the screen. Most of the visual appearnce stuff is done here.
+      This include calculating light reflections for shading, texture/bump/displacement mapping for a textured appearance, etc. 
+      As an example, my implementation of phong.frag basically takes the light equation word for word to generate phong shading.
+    </p>
+
+    <div align="middle">
+      <table style="width:100%">
+        <tr align="center">
+          <td>
+            <img src="5.1.png" align="middle" width="400px"/>
+            <figcaption>diffuse only, ks=1</figcaption>
+          </td>
+          <td>
+            <img src="5.2.png" align="middle" width="400px"/>
+            <figcaption>ambient only, ka=1, ia=0.3</figcaption>
+          </td>
+          </tr>
+          <tr align="center">
+            <td>
+              <img src="5.3.png" align="middle" width="400px"/>
+              <figcaption>specular only, ks=1, p=30</figcaption>
+            </td>
+            <td>
+              <img src="5.4.png" align="middle" width="400px"/>
+              <figcaption>all, ka=1, kd=1, ks=1, Ia=0.3, p=30</figcaption>
+            </td>
+            </tr>
+      </table>
+  </div>
+
+  <p alight>
+    Blinn-Phong shading is a composite of 3 parts that we can loosely assign lighting in real life into. The ambient component is a
+    rough estimation (without tracing every ray many times) of light that is bouncing everywhere in the scene, and applies a constant
+    amount of illumination to every direction of the susrface. This also prevents parts of the scene being completely dark,
+    since this is rarely the case in real life. The diffuse component represents reflections on rough surfaces that scatter in many directions. This
+    is a simplification of textured objects in real life with tiny peaks and troughs that reflect light in different directions. Surfaces
+    perpendicular to the incoming light scatter more light. The third component is specular, and it simulates the shiny spots on objects
+    by approximating it as a mirror. Light is reflected into one direction. All 3 components are weighted and added together to give the
+    object a realistic look.
+
+  </p>
+
+  <div align="middle">
+    <table style="width:100%">
+      <tr align="center">
+        <td>
+          <img src="5.45.png" align="middle" width="400px"/>
+          <figcaption>texture mapping</figcaption>
+        </td>
+        </tr>
+    </table>
+</div>
+
+<div align="middle">
+  <table style="width:100%">
+    <tr align="center">
+      <td>
+        <img src="5.5.png" align="middle" width="400px"/>
+        <figcaption>bump, o, a = 16</figcaption>
+      </td>
+      <td>
+        <img src="5.6.png" align="middle" width="400px"/>
+        <figcaption>bump sphere, o, a = 16</figcaption>
+      </td>
+      </tr>
+      <tr align="center">
+        <td>
+          <img src="5.7.png" align="middle" width="400px"/>
+          <figcaption>displacement sphere, o, a = 16</figcaption>
+        </td>
+        <td>
+          <img src="5.8.png" align="middle" width="400px"/>
+          <figcaption>displacement sphere, o, a = 128</figcaption>
+        </td>
+        </tr>
+  </table>
+</div>
+
+<p>
+  The finer the mesh, the more accurate the sphere is transformed
+  by the texture. It is difficult to see, but by zooming in we can see that the 128 version has
+  much more jagged edges (that match the texture) than the 16 version. This in turn makes the image more realistic, as displacement mapping
+  alters the geometry of the sphere, making it fit better with the texture.
+</p>
+
+<div align="middle">
+  <table style="width:100%">
+    <tr align="center">
+      <td>
+        <img src="5.9.png" align="middle" width="400px"/>
+        <figcaption>mirror, cloth</figcaption>
+      </td>
+      <td>
+        <img src="5.95.png" align="middle" width="400px"/>
+        <figcaption>mirror, sphere</figcaption>
+      </td>
+      </tr>
+  </table>
+</div>
+
+
+
+</body>
 </html>
